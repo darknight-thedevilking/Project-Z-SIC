@@ -197,12 +197,16 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
-            <View className="flex-1 px-6 pt-6">
-                <Text className="text-2xl font-bold text-gray-900">Login</Text>
-                <Text className="text-sm text-gray-600 mt-2">Access your saved favorites and preferences.</Text>
+        <SafeAreaView className="flex-1 bg-[#f2f6f6]">
+            <View className="bg-[#e6f4f4] px-6 pt-12 pb-8">
+                <View className="absolute right-[-40px] top-[-30px] h-36 w-36 rounded-full bg-[#d6efef]" />
+                <View className="absolute left-[-30px] bottom-[-30px] h-24 w-24 rounded-full bg-[#d6efef]" />
+                <Text className="text-2xl font-bold text-gray-900">Welcome back</Text>
+                <Text className="text-sm text-gray-700 mt-2">Sign in to continue your discovery journey.</Text>
+            </View>
 
-                <View className="mt-8">
+            <View className="px-6 -mt-6">
+                <View className="bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
                     <Text className="text-sm text-gray-700 mb-2">Email</Text>
                     <TextInput
                         className="border border-gray-200 rounded-2xl px-4 py-3 text-base"
@@ -284,7 +288,8 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             </View>
 
             {showReset ? (
-                <View className="px-6 pb-8">
+                <View className="px-6 pb-8 mt-6">
+                    <View className="bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
                     <Text className="text-lg font-semibold text-gray-900">Reset Password</Text>
                     <Text className="text-sm text-gray-600 mt-2">Enter the OTP sent to your email.</Text>
 
@@ -359,6 +364,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                             </TouchableOpacity>
                         </View>
                     ) : null}
+                    </View>
                 </View>
             ) : null}
         </SafeAreaView>

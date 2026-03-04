@@ -64,6 +64,11 @@ export const SearchScreen: React.FC<Props> = ({ navigation }) => {
                     </View>
                 ) : (
                     <View className="mt-4">
+                        {data ? (
+                            <Text className="text-xs text-gray-500 mb-3">
+                                {data.restaurants.length + data.tiffins.length + data.events.length} results
+                            </Text>
+                        ) : null}
                         <SearchResultsSection
                             title="Restaurants"
                             data={data?.restaurants ?? []}

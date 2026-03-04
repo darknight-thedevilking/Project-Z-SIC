@@ -121,14 +121,21 @@ export const OtpScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     return (
-        <View className="flex-1 bg-white px-6 pt-8">
-            <Text className="text-2xl font-bold text-gray-900">Verify Email</Text>
-            <Text className="text-sm text-gray-600 mt-2">
-                Enter the 6-digit code sent to <Text className="font-semibold">{email}</Text>.
-            </Text>
+        <View className="flex-1 bg-[#f2f6f6]">
+            <View className="bg-[#e6f4f4] px-6 pt-12 pb-8">
+                <View className="absolute right-[-40px] top-[-30px] h-36 w-36 rounded-full bg-[#d6efef]" />
+                <View className="absolute left-[-30px] bottom-[-30px] h-24 w-24 rounded-full bg-[#d6efef]" />
+                <Text className="text-2xl font-bold text-gray-900">Verify Email</Text>
+                <Text className="text-sm text-gray-700 mt-2">
+                    Enter the 6-digit code sent to <Text className="font-semibold">{email}</Text>.
+                </Text>
+            </View>
+
+            <View className="px-6 -mt-6">
+                <View className="bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
 
             {errorMessage ? (
-                <Text className="text-sm text-red-600 mt-4 text-center">{errorMessage}</Text>
+                <Text className="text-sm text-red-600 mt-2 text-center">{errorMessage}</Text>
             ) : null}
 
             <View className="flex-row justify-between mt-8">
@@ -168,6 +175,8 @@ export const OtpScreen: React.FC<Props> = ({ route, navigation }) => {
                         {isResending ? 'Sending...' : resendDisabled ? `Resend in ${formatTime(timer)}` : 'Resend Code'}
                     </Text>
                 </TouchableOpacity>
+            </View>
+                </View>
             </View>
         </View>
     );

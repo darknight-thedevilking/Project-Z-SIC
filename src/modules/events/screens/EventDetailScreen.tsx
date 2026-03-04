@@ -78,12 +78,14 @@ export const EventDetailScreen: React.FC<Props> = ({ route }) => {
                     {normalizedEvent.category && (
                         <Text className="text-xs font-semibold text-[#02757A] mt-2">{normalizedEvent.category}</Text>
                     )}
-                    {normalizedEvent.date && (
-                        <Text className="text-sm text-gray-600 mt-2">{new Date(normalizedEvent.date).toLocaleString()}</Text>
-                    )}
-                    {normalizedEvent.venue && (
-                        <Text className="text-sm text-gray-600 mt-1">Venue: {formatVenue(normalizedEvent.venue)}</Text>
-                    )}
+                    <View className="mt-4 bg-gray-50 rounded-2xl px-3 py-2">
+                        {normalizedEvent.date && (
+                            <Text className="text-sm text-gray-600">{new Date(normalizedEvent.date).toLocaleString()}</Text>
+                        )}
+                        {normalizedEvent.venue && (
+                            <Text className="text-sm text-gray-600 mt-1">Venue: {formatVenue(normalizedEvent.venue)}</Text>
+                        )}
+                    </View>
 
                     {(normalizedEvent.priceInfo || normalizedEvent.price) && (
                         <Text className="text-sm font-semibold text-[#02757A] mt-4">Price: {normalizedEvent.priceInfo || normalizedEvent.price}</Text>

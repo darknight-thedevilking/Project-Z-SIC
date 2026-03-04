@@ -24,13 +24,16 @@ export const AuthLandingScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     return (
-        <View className="flex-1 bg-white px-6 pt-10">
-            <View className="mt-10">
+        <View className="flex-1 bg-[#f2f6f6]">
+            <View className="bg-[#e6f4f4] px-6 pt-14 pb-10">
+                <View className="absolute right-[-40px] top-[-30px] h-36 w-36 rounded-full bg-[#d6efef]" />
+                <View className="absolute left-[-30px] bottom-[-30px] h-28 w-28 rounded-full bg-[#d6efef]" />
                 <Text className="text-3xl font-bold text-gray-900">Welcome to SIC</Text>
-                <Text className="text-sm text-gray-600 mt-2">Sign in to personalize your discovery journey.</Text>
+                <Text className="text-sm text-gray-700 mt-2">Discover restaurants, tiffins, and events around you.</Text>
             </View>
 
-            <View className="mt-10">
+            <View className="px-6 -mt-6">
+                <View className="bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
                 <TouchableOpacity
                     className="bg-[#02757A] px-5 py-4 rounded-2xl"
                     onPress={() => navigation.navigate('Login')}
@@ -62,6 +65,7 @@ export const AuthLandingScreen: React.FC<Props> = ({ navigation }) => {
                 {errorMessage ? (
                     <Text className="text-sm text-red-600 mt-4 text-center">{errorMessage}</Text>
                 ) : null}
+                </View>
             </View>
         </View>
     );

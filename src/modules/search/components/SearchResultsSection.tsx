@@ -38,8 +38,8 @@ export const SearchResultsSection: React.FC<SearchResultsSectionProps> = ({
         return (
             <TouchableOpacity
                 data-testid={`search-result-${item._id}`}
-                className="bg-white rounded-2xl overflow-hidden mb-3 shadow-sm flex-row"
-                style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 1 }}
+                className="bg-white rounded-3xl overflow-hidden mb-3 shadow-sm flex-row border border-gray-100"
+                style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 1 }}
                 onPress={() => onItemPress(item)}
             >
                 <View className="w-24 h-24 bg-gray-100">

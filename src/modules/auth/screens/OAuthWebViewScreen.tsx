@@ -47,12 +47,14 @@ export const OAuthWebViewScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
-            <View className="flex-row items-center px-4 py-3 border-b border-gray-100">
-                <TouchableOpacity onPress={handleClose} className="mr-2 px-2 py-1">
-                    <Text className="text-base text-gray-700">Back</Text>
-                </TouchableOpacity>
-                <Text className="text-base font-semibold text-gray-900">Continue with {providerLabel}</Text>
+        <SafeAreaView className="flex-1 bg-[#f2f6f6]">
+            <View className="bg-white px-4 py-3 border-b border-gray-100">
+                <View className="flex-row items-center">
+                    <TouchableOpacity onPress={handleClose} className="mr-2 px-2 py-1">
+                        <Text className="text-base text-gray-700">Back</Text>
+                    </TouchableOpacity>
+                    <Text className="text-base font-semibold text-gray-900">Continue with {providerLabel}</Text>
+                </View>
             </View>
 
             {webError ? (

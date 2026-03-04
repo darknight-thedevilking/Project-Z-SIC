@@ -155,6 +155,8 @@ export const EventListScreen: React.FC<Props> = ({ navigation }) => {
         return filtered;
     }, [allEvents, debouncedQuery, categoryFilter, dateFilter, sortBy]);
 
+    const filteredCount = filteredAndSortedEvents.length;
+
     const renderChip = (label: string, active: boolean, onPress: () => void) => (
         <TouchableOpacity
             key={label}
@@ -257,7 +259,10 @@ export const EventListScreen: React.FC<Props> = ({ navigation }) => {
 
             <View className="px-5 -mt-4">
                 <View className="bg-white rounded-3xl p-4 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}>
-                    <Text className="text-sm font-semibold text-gray-800">Quick filters</Text>
+                    <View className="flex-row items-center justify-between">
+                        <Text className="text-sm font-semibold text-gray-800">Quick filters</Text>
+                        <Text className="text-xs text-gray-500">{filteredCount} events</Text>
+                    </View>
                     <View className="flex-row mt-3">
                         {renderChip('Upcoming', dateFilter === 'upcoming', () => setDateFilter(dateFilter === 'upcoming' ? null : 'upcoming'))}
                         {renderChip('This Week', dateFilter === 'week', () => setDateFilter(dateFilter === 'week' ? null : 'week'))}

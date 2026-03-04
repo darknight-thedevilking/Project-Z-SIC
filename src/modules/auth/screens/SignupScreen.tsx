@@ -73,17 +73,22 @@ export const SignupScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
+        <SafeAreaView className="flex-1 bg-[#f2f6f6]">
             <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 24 }}>
-                <View className="px-6 pt-6">
-                    <Text className="text-2xl font-bold text-gray-900">Sign Up</Text>
-                    <Text className="text-sm text-gray-600 mt-2">Create an account to continue.</Text>
+                <View className="bg-[#f5efe8] px-6 pt-12 pb-8">
+                    <View className="absolute right-[-40px] top-[-30px] h-36 w-36 rounded-full bg-[#efe6db]" />
+                    <View className="absolute left-[-30px] bottom-[-30px] h-24 w-24 rounded-full bg-[#efe6db]" />
+                    <Text className="text-2xl font-bold text-gray-900">Create account</Text>
+                    <Text className="text-sm text-gray-700 mt-2">Join SIC and personalize your discovery.</Text>
+                </View>
 
+                <View className="px-6 -mt-6">
+                    <View className="bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
                     {errorMessage ? (
-                        <Text className="text-sm text-red-600 mt-4 text-center">{errorMessage}</Text>
+                        <Text className="text-sm text-red-600 mt-2 text-center">{errorMessage}</Text>
                     ) : null}
 
-                    <View className="mt-6">
+                    <View className="mt-4">
                         <Text className="text-sm text-gray-700 mb-2">Username</Text>
                         <TextInput
                             className="border border-gray-200 rounded-2xl px-4 py-3 text-base"
@@ -151,6 +156,7 @@ export const SignupScreen: React.FC<Props> = ({ navigation }) => {
                                 Already have an account? <Text className="text-[#02757A] font-semibold">Login</Text>
                             </Text>
                         </TouchableOpacity>
+                    </View>
                     </View>
                 </View>
             </ScrollView>
