@@ -1,7 +1,10 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { apiClient } from '../../../core/api/axios';
 import { ENDPOINTS } from '../../../core/api/endpoints';
 import { Tiffin, TiffinDetail } from '../types/tiffin';
+import { storage } from '../../../shared/utils/storage';
+
+const LIST_CACHE_TTL = 6 * 60 * 60 * 1000;
 
 type TiffinListParams = Record<string, string | number | boolean | string[] | undefined>;
 
@@ -9,10 +12,51 @@ export const useTiffins = (params?: TiffinListParams) => {
     return useQuery({
         queryKey: ['tiffins', params],
         queryFn: async () => {
-            const response = await apiClient.get<{ data: Tiffin[] }>(ENDPOINTS.tiffins.list, { params });
-            const payload = response.data?.data ?? response.data;
-            return Array.isArray(payload) ? payload : [];
+            try {
+                const response = await apiClient.get<{ data: Tiffin[] }>(ENDPOINTS.tiffins.list, { params });
+                const payload = response.data?.data ?? response.data;
+                const items = Array.isArray(payload) ? payload : [];
+                await storage.saveCache('tiffins:list', items);
+                return items;
+            } catch (error) {
+                const cached = await storage.getCache<Tiffin[]>('tiffins:list', LIST_CACHE_TTL);
+                return cached ?? [];
+            }
         },
+    });
+};
+
+export const useTiffinsInfinite = (params?: TiffinListParams) => {
+    return useInfiniteQuery({
+        queryKey: ['tiffins-infinite', params],
+        queryFn: async ({ pageParam = 1 }) => {
+            try {
+                const response = await apiClient.get<{ data: Tiffin[] }>(ENDPOINTS.tiffins.list, {
+                    params: { ...params, page: pageParam, limit: 10 },
+                });
+                const payload = response.data?.data ?? response.data;
+                const items = Array.isArray(payload) ? payload : [];
+
+                if (pageParam === 1) {
+                    await storage.saveCache('tiffins:list', items);
+                }
+
+                return {
+                    items,
+                    nextPage: items.length >= 10 ? pageParam + 1 : undefined,
+                };
+            } catch (error) {
+                if (pageParam === 1) {
+                    const cached = await storage.getCache<Tiffin[]>('tiffins:list', LIST_CACHE_TTL);
+                    if (cached) {
+                        return { items: cached, nextPage: undefined };
+                    }
+                }
+                return { items: [], nextPage: undefined };
+            }
+        },
+        getNextPageParam: (lastPage) => lastPage.nextPage,
+        initialPageParam: 1,
     });
 };
 

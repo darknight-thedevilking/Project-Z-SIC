@@ -1,29 +1,75 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, Image } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TiffinStackParamList } from '../../../core/navigation/types';
-import { useTiffins } from '../hooks/useTiffins';
+import { useTiffinsInfinite } from '../hooks/useTiffins';
 import { Tiffin } from '../types/tiffin';
+import { TiffinCard } from '../components/TiffinCard';
 import { ScreenHeader } from '../../../shared/components/ScreenHeader';
 import { LoadingSkeletonList } from '../../../shared/components/LoadingSkeletonList';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { EmptyState } from '../../../shared/components/EmptyState';
+import { storage } from '../../../shared/utils/storage';
 
 type Props = NativeStackScreenProps<TiffinStackParamList, 'TiffinList'>;
+type SortOption = 'default' | 'price-low' | 'price-high' | 'veg-first';
 
 export const TiffinListScreen: React.FC<Props> = ({ navigation }) => {
-    const { data: tiffins = [], isLoading, isError, refetch } = useTiffins();
-    const tiffinsList = Array.isArray(tiffins) ? tiffins : [];
     const [query, setQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [vegOnly, setVegOnly] = useState(false);
     const [priceFilter, setPriceFilter] = useState<'budget' | 'mid' | 'premium' | null>(null);
+    const [sortBy, setSortBy] = useState<SortOption>('default');
+    const [showSortMenu, setShowSortMenu] = useState(false);
+
+    const {
+        data,
+        isLoading,
+        isError,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        refetch,
+    } = useTiffinsInfinite();
+
+    const allTiffins = useMemo(() => {
+        const items = data?.pages.flatMap((page) => page.items) ?? [];
+        const seen = new Set<string>();
+        return items.filter((item) => {
+            const id = item._id;
+            if (!id) return true;
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+    }, [data]);
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedQuery(query.trim()), 500);
         return () => clearTimeout(timer);
     }, [query]);
+
+    useEffect(() => {
+        loadFilters();
+    }, []);
+
+    useEffect(() => {
+        saveFilters();
+    }, [vegOnly, priceFilter, sortBy]);
+
+    const loadFilters = async () => {
+        const saved = await storage.getFilters('tiffins');
+        if (saved) {
+            if (saved.vegOnly !== undefined) setVegOnly(saved.vegOnly);
+            if (saved.priceFilter) setPriceFilter(saved.priceFilter);
+            if (saved.sortBy) setSortBy(saved.sortBy);
+        }
+    };
+
+    const saveFilters = async () => {
+        await storage.saveFilters('tiffins', { vegOnly, priceFilter, sortBy });
+    };
 
     useFocusEffect(
         useCallback(() => {
@@ -41,9 +87,9 @@ export const TiffinListScreen: React.FC<Props> = ({ navigation }) => {
         return null;
     };
 
-    const filteredTiffins = useMemo(() => {
+    const filteredAndSortedTiffins = useMemo(() => {
         const lowerQuery = debouncedQuery.toLowerCase();
-        return tiffinsList.filter((item) => {
+        let filtered = allTiffins.filter((item) => {
             const searchable = [item.name, item.shortDescription, ...(item.mealPlans || [])]
                 .filter(Boolean)
                 .join(' ')
@@ -59,54 +105,34 @@ export const TiffinListScreen: React.FC<Props> = ({ navigation }) => {
             }
             return true;
         });
-    }, [tiffinsList, debouncedQuery, vegOnly, priceFilter]);
 
-    const renderItem = ({ item }: { item: Tiffin }) => {
-        const imageUrl = item.imageUrl;
-        const priceValue = getPriceValue(item);
+        if (sortBy === 'price-low') {
+            filtered = filtered.sort((a, b) => {
+                const priceA = getPriceValue(a) ?? Infinity;
+                const priceB = getPriceValue(b) ?? Infinity;
+                return priceA - priceB;
+            });
+        } else if (sortBy === 'price-high') {
+            filtered = filtered.sort((a, b) => {
+                const priceA = getPriceValue(a) ?? 0;
+                const priceB = getPriceValue(b) ?? 0;
+                return priceB - priceA;
+            });
+        } else if (sortBy === 'veg-first') {
+            filtered = filtered.sort((a, b) => {
+                if (a.vegOnly && !b.vegOnly) return -1;
+                if (!a.vegOnly && b.vegOnly) return 1;
+                return 0;
+            });
+        }
 
-        return (
-            <TouchableOpacity
-                className="bg-white rounded-3xl overflow-hidden mb-4 shadow-sm"
-                style={{ shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 }}
-                onPress={() => navigation.navigate('TiffinDetail', { id: item._id || 'unknown' })}
-            >
-                <View className="h-40 bg-gray-100">
-                    {imageUrl ? (
-                        <Image source={{ uri: imageUrl }} className="h-40 w-full" />
-                    ) : (
-                        <View className="flex-1 items-center justify-center">
-                            <Text className="text-xs text-gray-500">No image</Text>
-                        </View>
-                    )}
-                </View>
-                <View className="p-4">
-                    <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
-                        {item.name || 'Unnamed Tiffin'}
-                    </Text>
-                    {item.shortDescription && (
-                        <Text className="text-sm text-gray-600 mt-1" numberOfLines={2}>
-                            {item.shortDescription}
-                        </Text>
-                    )}
-                    <View className="flex-row items-center justify-between mt-3">
-                        {priceValue !== null && (
-                            <Text className="text-xs font-semibold text-[#02757A]">₹{priceValue} / meal</Text>
-                        )}
-                        {item.vegOnly && (
-                            <View className="bg-emerald-50 px-2 py-1 rounded-full">
-                                <Text className="text-[11px] font-semibold text-emerald-700">Veg Only</Text>
-                            </View>
-                        )}
-                    </View>
-                </View>
-            </TouchableOpacity>
-        );
-    };
+        return filtered;
+    }, [allTiffins, debouncedQuery, vegOnly, priceFilter, sortBy]);
 
     const renderChip = (label: string, active: boolean, onPress: () => void) => (
         <TouchableOpacity
             key={label}
+            data-testid={`filter-chip-${label.toLowerCase()}`}
             className={`mr-2 rounded-full border px-3 py-2 ${active ? 'bg-[#02757A] border-[#02757A]' : 'bg-white border-gray-200'}`}
             onPress={onPress}
         >
@@ -114,21 +140,103 @@ export const TiffinListScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
     );
 
+    const handleTiffinPress = useCallback((id: string) => {
+        navigation.navigate('TiffinDetail', { id });
+    }, [navigation]);
+
+    const renderItem = useCallback(({ item }: { item: Tiffin }) => (
+        <TiffinCard item={item} onPress={handleTiffinPress} />
+    ), [handleTiffinPress]);
+
+    const keyExtractor = useCallback((item: Tiffin, index: number) => item._id || index.toString(), []);
+
+    const getItemLayout = useCallback((data: ArrayLike<Tiffin> | null | undefined, index: number) => ({
+        length: 240,
+        offset: 240 * index,
+        index,
+    }), []);
+
+    const renderFooter = () => {
+        if (!isFetchingNextPage) return null;
+        return (
+            <View className="py-4">
+                <ActivityIndicator size="small" color="#02757A" />
+            </View>
+        );
+    };
+
+    const handleLoadMore = () => {
+        if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    };
+
+    const sortOptions = [
+        { value: 'default', label: 'Default' },
+        { value: 'price-low', label: 'Price: Low to High' },
+        { value: 'price-high', label: 'Price: High to Low' },
+        { value: 'veg-first', label: 'Veg Priority' },
+    ];
+
     return (
-        <View className="flex-1 bg-[#f7f7f7]">
-            <ScreenHeader title="Tiffin" subtitle="Home-style meal services" />
-            <View className="px-5">
-                <TextInput
-                    className="bg-white px-4 py-3 rounded-2xl text-base text-gray-900"
-                    placeholder="Search by meal plan or provider"
-                    value={query}
-                    onChangeText={setQuery}
+        <View className="flex-1 bg-[#f2f6f6]">
+            <View className="bg-[#f5efe8] px-5 pt-12 pb-6">
+                <View className="absolute right-[-30px] top-[-20px] h-28 w-28 rounded-full bg-[#efe6db]" />
+                <View className="absolute left-[-20px] bottom-[-30px] h-24 w-24 rounded-full bg-[#efe6db]" />
+                <ScreenHeader
+                    title="Tiffin"
+                    subtitle="Home-style meal services"
+                    rightSlot={
+                        <TouchableOpacity
+                            data-testid="sort-button"
+                            onPress={() => setShowSortMenu(!showSortMenu)}
+                            className="bg-white rounded-full px-4 py-2"
+                            style={{ shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}
+                        >
+                            <Text className="text-xs font-semibold text-gray-700">Sort ▼</Text>
+                        </TouchableOpacity>
+                    }
                 />
-                <View className="flex-row mt-3">
-                    {renderChip('Veg', vegOnly, () => setVegOnly((prev) => !prev))}
-                    {renderChip('Budget', priceFilter === 'budget', () => setPriceFilter(priceFilter === 'budget' ? null : 'budget'))}
-                    {renderChip('Mid', priceFilter === 'mid', () => setPriceFilter(priceFilter === 'mid' ? null : 'mid'))}
-                    {renderChip('Premium', priceFilter === 'premium', () => setPriceFilter(priceFilter === 'premium' ? null : 'premium'))}
+                <View className="mt-4">
+                    <TextInput
+                        data-testid="search-input"
+                        className="bg-white px-4 py-3 rounded-2xl text-base text-gray-900"
+                        placeholder="Search by meal plan or provider"
+                        value={query}
+                        onChangeText={setQuery}
+                    />
+                </View>
+            </View>
+
+            {showSortMenu && (
+                <View className="bg-white mx-5 rounded-2xl shadow-lg mb-2" style={{ elevation: 4 }}>
+                    {sortOptions.map((option) => (
+                        <TouchableOpacity
+                            key={option.value}
+                            data-testid={`sort-option-${option.value}`}
+                            className={`px-4 py-3 border-b border-gray-100 ${sortBy === option.value ? 'bg-[#02757A]/10' : ''}`}
+                            onPress={() => {
+                                setSortBy(option.value as SortOption);
+                                setShowSortMenu(false);
+                            }}
+                        >
+                            <Text className={`text-sm font-semibold ${sortBy === option.value ? 'text-[#02757A]' : 'text-gray-900'}`}>
+                                {option.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
+            <View className="px-5 -mt-4">
+                <View className="bg-white rounded-3xl p-4 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}>
+                    <Text className="text-sm font-semibold text-gray-800">Quick filters</Text>
+                    <View className="flex-row mt-3">
+                        {renderChip('Veg', vegOnly, () => setVegOnly((prev) => !prev))}
+                        {renderChip('Budget', priceFilter === 'budget', () => setPriceFilter(priceFilter === 'budget' ? null : 'budget'))}
+                        {renderChip('Mid', priceFilter === 'mid', () => setPriceFilter(priceFilter === 'mid' ? null : 'mid'))}
+                        {renderChip('Premium', priceFilter === 'premium', () => setPriceFilter(priceFilter === 'premium' ? null : 'premium'))}
+                    </View>
                 </View>
             </View>
 
@@ -138,10 +246,18 @@ export const TiffinListScreen: React.FC<Props> = ({ navigation }) => {
                 <ErrorState message="Failed to load tiffin services." onRetry={refetch} />
             ) : (
                 <FlatList
-                    data={filteredTiffins}
-                    keyExtractor={(item, index) => item._id || index.toString()}
+                    data={filteredAndSortedTiffins}
+                    keyExtractor={keyExtractor}
                     renderItem={renderItem}
-                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, paddingTop: 8 }}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, paddingTop: 20 }}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={renderFooter}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    removeClippedSubviews
+                    getItemLayout={getItemLayout}
                     ListEmptyComponent={
                         <EmptyState
                             title="No tiffin services found"
@@ -151,6 +267,7 @@ export const TiffinListScreen: React.FC<Props> = ({ navigation }) => {
                                 setQuery('');
                                 setVegOnly(false);
                                 setPriceFilter(null);
+                                setSortBy('default');
                             }}
                         />
                     }

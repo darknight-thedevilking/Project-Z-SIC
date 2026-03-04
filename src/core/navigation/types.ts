@@ -30,5 +30,17 @@ export type RootStackParamList = {
     Splash: undefined;
     AuthLanding: undefined;
     Login: undefined;
+    Signup: undefined;
+    Otp: {
+        email: string;
+        password?: string;
+        username?: string;
+    };
+    OAuthWebView: {
+        provider: 'google' | 'facebook' | 'twitter';
+        rememberMe?: boolean;
+    };
+    Search: undefined;
+    NotFound: undefined;
     MainTabs: NavigatorScreenParams<MainTabsParamList> | undefined;
 };

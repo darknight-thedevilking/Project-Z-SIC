@@ -1,0 +1,236 @@
+PRODUCT REQUIREMENTS DOCUMENT (PRD)
+Strategic Information Center
+Mobile & Backend Platform for Restaurants, Tiffin Services & Events Discovery
+
+1. Document Version & Metadata
+Product Name: Strategic Information Center
+Version: 1.0
+Date: 2026-02-10
+Owners: Product & Engineering
+Reviewers: UX, Backend, Mobile
+Status: Draft → Final
+
+2. Executive Summary
+The Strategic Information Center is a mobile discovery platform built with React Native and
+a scalable backend (Node.js + Express.js + MongoDB). It aggregates structured information
+about restaurants, tiffin services, and events, presented in a familiar
+food-ordering/event-booking UI without transactional features in Phase 1. Users can
+browse menus, services, schedules, and open navigation in Google Maps for real-world
+directions.​
+​
+This phase focuses on discovery, clarity, and navigation, enabling future extensions like
+ordering, payments, and bookings.
+
+3. Problem Statement
+Users currently lack a unified, easy-to-use platform to:
+• View restaurant offerings and menus
+• Explore tiffin meal plans
+• Discover local events
+Existing discovery tools either focus on transactions or superficial listings. This product
+provides structured, reliable information before introducing transactions.
+
+4. Scope
+In Scope (Phase 1):
+✔ Restaurant listings & detailed info
+
+✔ Tiffin service listings & plans
+✔ Event listings & details
+✔ Search & filters
+✔ Navigation integration with Google Maps
+✔ Admin content management
+✔ Feature flag-driven UI control
+Out of Scope (Phase 1):
+× Ordering
+× Payments
+× Event ticketing
+× User accounts & authentication
+× Reviews/ratings
+
+5. Product Goals & Success Metrics
+Business Goals:
+• Increase user engagement with discovery content
+• Onboard local businesses
+• Reduce drop-offs caused by lack of information
+Success Metrics:
+• Weekly active users (WAU)
+• Average time per session
+• Listings viewed per session
+• Navigation actions triggered
+• Partner listings uploaded
+
+6. User Personas
+Primary Users:
+• Local residents searching for food or events
+• Students & young professionals
+
+Secondary Users:
+• Restaurant & tiffin service owners
+• Event organizers
+• Admin staff managing content
+
+7. User Journey & Use Cases
+1. User opens app
+2. Views landing category: Restaurants, Tiffin, or Events
+3. Searches/filters listings
+4. Opens detail page
+5. Views structured information
+6. Clicks Navigate → Opens Google Maps
+
+8. UX & UI Principles
+• Familiar, low-friction layout resembling food ordering apps
+• Clear labeling of non-transactional actions (e.g., “Coming Soon”)
+• Search and filters tailored to content types
+• Consistent navigation and accessible content hierarchy
+
+9. Requirements
+9.1 Functional Requirements
+Restaurant Listing:
+• Display restaurants with name, cuisine tags, price range, badges
+• Sorting & filters (veg, cuisine, price)
+• Detail view with menu, services, images, hours, contact
+Tiffin Services:
+• Display tiffin service providers and list subscription plans
+• Show meal schedules & days
+• Present coverage areas & pricing
+
+Events:
+• Display event date/time, category
+• Venue info + price details
+• Navigation destination
+9.2 Navigation
+Users can tap Navigate on any detail page to open Google Maps with the destination
+prefilled using geocoordinates.
+9.3 Search & Filters
+• Multi-field search
+• Price, diet, category filters
+• Date/time filters for events
+9.4 Feature Flags (Important Implementation)
+All future features like ordering or booking are controlled via backend feature flags,
+preventing UI exposure until enabled.
+
+10. Technical Architecture
+Mobile App:
+• React Native with Expo and Native Wind
+• REST API consumption
+• Feature flag handling on launch
+• Navigation via deep links to Google Maps
+Backend:
+• Node.js (Express)
+• REST API server
+• JWT-protected admin routes
+• Scales for read-heavy queries
+Storage:
+• MongoDB for structured listings
+• Cloudinary for image storage
+
+11. API Specification (High-Level)
+Endpoint
+
+Method
+
+Purpose
+
+/restaurants
+
+GET
+
+List restaurants
+
+/restaurants/{id}
+
+GET
+
+Restaurant detail
+
+/tiffins
+
+GET
+
+List tiffin providers
+
+/events
+
+GET
+
+List events
+
+/config
+
+GET
+
+Fetch feature flags
+
+/admin/*
+
+POST/PUT/DELETE
+
+Admin content CRUD
+
+Each API supports pagination, filtering, and returns JSON.
+
+12. Database Design (MongoDB)
+Restaurant: _id, name, description, cuisines, menu, location, images, serviceTypes
+TiffinProvider: _id, providerName, vegOnly, mealPlans, location, prices
+Events: _id, title, date, venue, priceInfo, category
+GlobalConfig: Feature flags (e.g., enableOrdering, enableBooking)
+
+13. Admin Content Management
+• CRUD of restaurants, tiffin plans, events
+• Uploading images (Cloudinary integration)
+• Managing feature flags
+
+14. Non-Functional Requirements
+• Fast app startup (<3s)
+• Offline content caching
+• Real-time GPS navigation using Google Maps, even when offline
+• Secure admin API access
+• Scalable backend
+• CDN delivery of images
+
+15. Assumptions
+• Google Maps app installed on user devices
+
+• Users understand navigation will open an external app
+• Admins will manage data integrity
+
+16. Constraints
+• No in-app payments in Phase 1
+• Basic user privacy; no user accounts
+• No reviews or ratings yet
+
+17. Risks & Mitigations
+Risk
+
+Mitigation
+
+Users expect ordering
+
+Clear “Coming Soon” labels
+
+Incorrect location data
+
+Admin verification & manual pin validation
+
+Overload of content
+
+Pagination & filters
+
+18. Future Considerations
+Phase 2+:
+• In-app ordering & payments
+• Event ticketing
+• User profiles & reviews
+• Distance-based sorting & recommendations
+
+19. Glossary
+Discovery – Browsing listings without transactions
+Feature Flags – Backend toggles enabling/disabling features
+Deep Link – Link opening Google Maps from the app
+
+20. Approval
+Product Lead: Manik Pandey
+Engineering Lead: Sushant Kumar Yadav
+UX Lead: Anisha
+Date Approved:
+
+

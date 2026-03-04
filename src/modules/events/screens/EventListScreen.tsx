@@ -1,28 +1,75 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, Image } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { EventsStackParamList } from '../../../core/navigation/types';
-import { useEvents } from '../hooks/useEvents';
+import { useEventsInfinite } from '../hooks/useEvents';
 import { Event } from '../types/event';
+import { EventCard } from '../components/EventCard';
 import { ScreenHeader } from '../../../shared/components/ScreenHeader';
 import { LoadingSkeletonList } from '../../../shared/components/LoadingSkeletonList';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { EmptyState } from '../../../shared/components/EmptyState';
+import { storage } from '../../../shared/utils/storage';
 
 type Props = NativeStackScreenProps<EventsStackParamList, 'EventList'>;
+type SortOption = 'default' | 'date-asc' | 'date-desc' | 'price-low' | 'price-high';
 
 export const EventListScreen: React.FC<Props> = ({ navigation }) => {
-    const { data: events = [], isLoading, isError, refetch } = useEvents();
     const [query, setQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
     const [dateFilter, setDateFilter] = useState<'upcoming' | 'week' | 'past' | null>(null);
+    const [sortBy, setSortBy] = useState<SortOption>('default');
+    const [showSortMenu, setShowSortMenu] = useState(false);
+
+    const {
+        data,
+        isLoading,
+        isError,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        refetch,
+    } = useEventsInfinite();
+
+    const allEvents = useMemo(() => {
+        const items = data?.pages.flatMap((page) => page.items) ?? [];
+        const seen = new Set<string>();
+        return items.filter((item) => {
+            const id = item._id;
+            if (!id) return true;
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+    }, [data]);
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedQuery(query.trim()), 500);
         return () => clearTimeout(timer);
     }, [query]);
+
+    useEffect(() => {
+        loadFilters();
+    }, []);
+
+    useEffect(() => {
+        saveFilters();
+    }, [categoryFilter, dateFilter, sortBy]);
+
+    const loadFilters = async () => {
+        const saved = await storage.getFilters('events');
+        if (saved) {
+            if (saved.categoryFilter) setCategoryFilter(saved.categoryFilter);
+            if (saved.dateFilter) setDateFilter(saved.dateFilter);
+            if (saved.sortBy) setSortBy(saved.sortBy);
+        }
+    };
+
+    const saveFilters = async () => {
+        await storage.saveFilters('events', { categoryFilter, dateFilter, sortBy });
+    };
 
     useFocusEffect(
         useCallback(() => {
@@ -32,11 +79,11 @@ export const EventListScreen: React.FC<Props> = ({ navigation }) => {
 
     const categoryOptions = useMemo(() => {
         const set = new Set<string>();
-        events.forEach((item) => {
+        allEvents.forEach((item) => {
             if (item.category) set.add(item.category);
         });
         return Array.from(set).slice(0, 8);
-    }, [events]);
+    }, [allEvents]);
 
     const isWithinDays = (dateString?: string, days = 7) => {
         if (!dateString) return false;
@@ -54,21 +101,18 @@ export const EventListScreen: React.FC<Props> = ({ navigation }) => {
         return date.getTime() < Date.now();
     };
 
-    const formatVenue = (venue?: Event['venue']) => {
-        if (!venue) return '';
-        if (typeof venue === 'string') return venue;
-        if (typeof venue === 'object') {
-            const value = venue as { name?: string; address?: string; city?: string; state?: string; country?: string };
-            return [value.name, value.address, value.city, value.state, value.country]
-                .filter(Boolean)
-                .join(', ');
+    const getPrice = (event: Event): number | null => {
+        if (typeof event.price === 'number') return event.price;
+        if (typeof event.price === 'string') {
+            const match = event.price.match(/\d+/);
+            return match ? Number(match[0]) : null;
         }
-        return String(venue);
+        return null;
     };
 
-    const filteredEvents = useMemo(() => {
+    const filteredAndSortedEvents = useMemo(() => {
         const lowerQuery = debouncedQuery.toLowerCase();
-        return events.filter((item) => {
+        let filtered = allEvents.filter((item) => {
             const title = item.name || item.title || '';
             const searchable = [title, item.description, item.category, item.venue]
                 .filter(Boolean)
@@ -81,11 +125,40 @@ export const EventListScreen: React.FC<Props> = ({ navigation }) => {
             if (dateFilter === 'past') return isPastEvent(item.date);
             return true;
         });
-    }, [events, debouncedQuery, categoryFilter, dateFilter]);
+
+        if (sortBy === 'date-asc') {
+            filtered = filtered.sort((a, b) => {
+                const dateA = a.date ? new Date(a.date).getTime() : Infinity;
+                const dateB = b.date ? new Date(b.date).getTime() : Infinity;
+                return dateA - dateB;
+            });
+        } else if (sortBy === 'date-desc') {
+            filtered = filtered.sort((a, b) => {
+                const dateA = a.date ? new Date(a.date).getTime() : 0;
+                const dateB = b.date ? new Date(b.date).getTime() : 0;
+                return dateB - dateA;
+            });
+        } else if (sortBy === 'price-low') {
+            filtered = filtered.sort((a, b) => {
+                const priceA = getPrice(a) ?? Infinity;
+                const priceB = getPrice(b) ?? Infinity;
+                return priceA - priceB;
+            });
+        } else if (sortBy === 'price-high') {
+            filtered = filtered.sort((a, b) => {
+                const priceA = getPrice(a) ?? 0;
+                const priceB = getPrice(b) ?? 0;
+                return priceB - priceA;
+            });
+        }
+
+        return filtered;
+    }, [allEvents, debouncedQuery, categoryFilter, dateFilter, sortBy]);
 
     const renderChip = (label: string, active: boolean, onPress: () => void) => (
         <TouchableOpacity
             key={label}
+            data-testid={`filter-chip-${label.toLowerCase().replace(/\s+/g, '-')}`}
             className={`mr-2 rounded-full border px-3 py-2 ${active ? 'bg-[#02757A] border-[#02757A]' : 'bg-white border-gray-200'}`}
             onPress={onPress}
         >
@@ -93,69 +166,110 @@ export const EventListScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
     );
 
-    const renderItem = ({ item }: { item: Event }) => {
-        const imageUrl = item.imageUrl || item.images?.[0];
-        const ended = isPastEvent(item.date);
+    const handleEventPress = useCallback((id: string) => {
+        navigation.navigate('EventDetail', { id });
+    }, [navigation]);
 
+    const renderItem = useCallback(({ item }: { item: Event }) => (
+        <EventCard item={item} onPress={handleEventPress} />
+    ), [handleEventPress]);
+
+    const keyExtractor = useCallback((item: Event, index: number) => item._id || index.toString(), []);
+
+    const getItemLayout = useCallback((data: ArrayLike<Event> | null | undefined, index: number) => ({
+        length: 240,
+        offset: 240 * index,
+        index,
+    }), []);
+
+    const renderFooter = () => {
+        if (!isFetchingNextPage) return null;
         return (
-            <TouchableOpacity
-                className="bg-white rounded-3xl overflow-hidden mb-4 shadow-sm"
-                style={{ shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 }}
-                onPress={() => navigation.navigate('EventDetail', { id: item._id || 'unknown' })}
-            >
-                <View className="h-40 bg-gray-100">
-                    {imageUrl ? (
-                        <Image source={{ uri: imageUrl }} className="h-40 w-full" />
-                    ) : (
-                        <View className="flex-1 items-center justify-center">
-                            <Text className="text-xs text-gray-500">No image</Text>
-                        </View>
-                    )}
-                    {ended && (
-                        <View className="absolute top-3 right-3 bg-red-600 px-2 py-1 rounded-full">
-                            <Text className="text-xs font-semibold text-white">Event Ended</Text>
-                        </View>
-                    )}
-                </View>
-                <View className="p-4">
-                    <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
-                        {item.name || item.title || 'Unnamed Event'}
-                    </Text>
-                    {item.date && (
-                        <Text className="text-sm text-gray-600 mt-1">{new Date(item.date).toLocaleDateString()}</Text>
-                    )}
-                    {item.venue && (
-                        <Text className="text-xs text-gray-500 mt-1" numberOfLines={1}>Venue: {formatVenue(item.venue)}</Text>
-                    )}
-                    {item.category && (
-                        <Text className="text-xs font-semibold text-[#02757A] mt-2">{item.category}</Text>
-                    )}
-                </View>
-            </TouchableOpacity>
+            <View className="py-4">
+                <ActivityIndicator size="small" color="#02757A" />
+            </View>
         );
     };
 
+    const handleLoadMore = () => {
+        if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    };
+
+    const sortOptions = [
+        { value: 'default', label: 'Default' },
+        { value: 'date-asc', label: 'Date: Nearest First' },
+        { value: 'date-desc', label: 'Date: Latest First' },
+        { value: 'price-low', label: 'Price: Low to High' },
+        { value: 'price-high', label: 'Price: High to Low' },
+    ];
+
     return (
-        <View className="flex-1 bg-[#f7f7f7]">
-            <ScreenHeader title="Events" subtitle="Live shows and community meetups" />
-            <View className="px-5">
-                <TextInput
-                    className="bg-white px-4 py-3 rounded-2xl text-base text-gray-900"
-                    placeholder="Search events, venues, or categories"
-                    value={query}
-                    onChangeText={setQuery}
+        <View className="flex-1 bg-[#f2f6f6]">
+            <View className="bg-[#efe9f6] px-5 pt-12 pb-6">
+                <View className="absolute right-[-30px] top-[-20px] h-28 w-28 rounded-full bg-[#e3daf0]" />
+                <View className="absolute left-[-20px] bottom-[-30px] h-24 w-24 rounded-full bg-[#e3daf0]" />
+                <ScreenHeader
+                    title="Events"
+                    subtitle="Live shows and community meetups"
+                    rightSlot={
+                        <TouchableOpacity
+                            data-testid="sort-button"
+                            onPress={() => setShowSortMenu(!showSortMenu)}
+                            className="bg-white rounded-full px-4 py-2"
+                            style={{ shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}
+                        >
+                            <Text className="text-xs font-semibold text-gray-700">Sort ▼</Text>
+                        </TouchableOpacity>
+                    }
                 />
-                <View className="flex-row mt-3">
-                    {renderChip('Upcoming', dateFilter === 'upcoming', () => setDateFilter(dateFilter === 'upcoming' ? null : 'upcoming'))}
-                    {renderChip('This Week', dateFilter === 'week', () => setDateFilter(dateFilter === 'week' ? null : 'week'))}
-                    {renderChip('Past', dateFilter === 'past', () => setDateFilter(dateFilter === 'past' ? null : 'past'))}
+                <View className="mt-4">
+                    <TextInput
+                        data-testid="search-input"
+                        className="bg-white px-4 py-3 rounded-2xl text-base text-gray-900"
+                        placeholder="Search events, venues, or categories"
+                        value={query}
+                        onChangeText={setQuery}
+                    />
                 </View>
-                <View className="flex-row mt-3 flex-wrap">
-                    {categoryOptions.map((category) =>
-                        renderChip(category, categoryFilter === category, () =>
-                            setCategoryFilter(categoryFilter === category ? null : category)
-                        )
-                    )}
+            </View>
+
+            {showSortMenu && (
+                <View className="bg-white mx-5 rounded-2xl shadow-lg mb-2" style={{ elevation: 4 }}>
+                    {sortOptions.map((option) => (
+                        <TouchableOpacity
+                            key={option.value}
+                            data-testid={`sort-option-${option.value}`}
+                            className={`px-4 py-3 border-b border-gray-100 ${sortBy === option.value ? 'bg-[#02757A]/10' : ''}`}
+                            onPress={() => {
+                                setSortBy(option.value as SortOption);
+                                setShowSortMenu(false);
+                            }}
+                        >
+                            <Text className={`text-sm font-semibold ${sortBy === option.value ? 'text-[#02757A]' : 'text-gray-900'}`}>
+                                {option.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
+            <View className="px-5 -mt-4">
+                <View className="bg-white rounded-3xl p-4 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}>
+                    <Text className="text-sm font-semibold text-gray-800">Quick filters</Text>
+                    <View className="flex-row mt-3">
+                        {renderChip('Upcoming', dateFilter === 'upcoming', () => setDateFilter(dateFilter === 'upcoming' ? null : 'upcoming'))}
+                        {renderChip('This Week', dateFilter === 'week', () => setDateFilter(dateFilter === 'week' ? null : 'week'))}
+                        {renderChip('Past', dateFilter === 'past', () => setDateFilter(dateFilter === 'past' ? null : 'past'))}
+                    </View>
+                    <View className="flex-row mt-3 flex-wrap">
+                        {categoryOptions.map((category) =>
+                            renderChip(category, categoryFilter === category, () =>
+                                setCategoryFilter(categoryFilter === category ? null : category)
+                            )
+                        )}
+                    </View>
                 </View>
             </View>
 
@@ -165,10 +279,18 @@ export const EventListScreen: React.FC<Props> = ({ navigation }) => {
                 <ErrorState message="Failed to load events." onRetry={refetch} />
             ) : (
                 <FlatList
-                    data={filteredEvents}
-                    keyExtractor={(item, index) => item._id || index.toString()}
+                    data={filteredAndSortedEvents}
+                    keyExtractor={keyExtractor}
                     renderItem={renderItem}
-                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, paddingTop: 8 }}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, paddingTop: 20 }}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={renderFooter}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    removeClippedSubviews
+                    getItemLayout={getItemLayout}
                     ListEmptyComponent={
                         <EmptyState
                             title="No events match your filters"
@@ -178,6 +300,7 @@ export const EventListScreen: React.FC<Props> = ({ navigation }) => {
                                 setCategoryFilter(null);
                                 setDateFilter(null);
                                 setQuery('');
+                                setSortBy('default');
                             }}
                         />
                     }

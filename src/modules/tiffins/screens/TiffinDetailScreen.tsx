@@ -9,12 +9,14 @@ import { ImageCarousel } from '../../../shared/components/ImageCarousel';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingSkeletonList } from '../../../shared/components/LoadingSkeletonList';
 import { openInMaps } from '../../../shared/utils/maps';
+import { useFeatureFlags } from '../../../core/hooks/useFeatureFlags';
 
 type Props = NativeStackScreenProps<TiffinStackParamList, 'TiffinDetail'>;
 
 export const TiffinDetailScreen: React.FC<Props> = ({ route }) => {
     const { id } = route.params;
     const { data: tiffin, isLoading, isError, refetch } = useTiffinDetail(id);
+    const { data: featureFlags } = useFeatureFlags();
 
     const normalizedTiffin = tiffin as TiffinDetail | undefined;
 
@@ -53,24 +55,32 @@ export const TiffinDetailScreen: React.FC<Props> = ({ route }) => {
     }
 
     return (
-        <ScrollView className="flex-1 bg-white">
+        <ScrollView className="flex-1 bg-[#f6f7f8]">
             <View className="px-5 py-6">
                 {images.length > 0 && <ImageCarousel images={images} />}
 
-                <Text className="text-2xl font-bold text-gray-900 mt-6">{normalizedTiffin.name || 'Unnamed Tiffin'}</Text>
-                {normalizedTiffin.vegOnly && (
-                    <View className="mt-2 bg-emerald-50 px-2 py-1 rounded-full self-start">
-                        <Text className="text-[11px] font-semibold text-emerald-700">Veg Only</Text>
-                    </View>
-                )}
-                {normalizedTiffin.description && (
-                    <Text className="text-base text-gray-700 mt-4 leading-6">{normalizedTiffin.description}</Text>
-                )}
-                {(normalizedTiffin.pricePerMeal || normalizedTiffin.priceRange) && (
-                    <Text className="text-sm font-semibold text-[#02757A] mt-3">₹{normalizedTiffin.pricePerMeal || normalizedTiffin.priceRange} per meal</Text>
-                )}
+                <View className="bg-white rounded-3xl p-5 shadow-sm mt-5" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
+                    <Text className="text-2xl font-bold text-gray-900">{normalizedTiffin.name || 'Unnamed Tiffin'}</Text>
+                    {normalizedTiffin.vegOnly && (
+                        <View className="mt-2 bg-emerald-50 px-2 py-1 rounded-full self-start">
+                            <Text className="text-[11px] font-semibold text-emerald-700">Veg Only</Text>
+                        </View>
+                    )}
+                    {normalizedTiffin.description && (
+                        <Text className="text-base text-gray-700 mt-4 leading-6">{normalizedTiffin.description}</Text>
+                    )}
+                    {(normalizedTiffin.pricePerMeal || normalizedTiffin.priceRange) && (
+                        <Text className="text-sm font-semibold text-[#02757A] mt-3">₹{normalizedTiffin.pricePerMeal || normalizedTiffin.priceRange} per meal</Text>
+                    )}
 
-                <View className="mt-6">
+                    {!featureFlags?.enableOrdering && (
+                        <View className="mt-4 bg-amber-50 px-3 py-2 rounded-2xl self-start">
+                            <Text className="text-xs font-semibold text-amber-700">Ordering Coming Soon</Text>
+                        </View>
+                    )}
+                </View>
+
+                <View className="mt-6 bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
                     <Text className="text-base font-semibold text-gray-900 mb-2">Meal plans</Text>
                     {plans.length > 0 ? (
                         plans.map((plan) => (
@@ -82,21 +92,21 @@ export const TiffinDetailScreen: React.FC<Props> = ({ route }) => {
                 </View>
 
                 {days.length > 0 && (
-                    <View className="mt-6">
+                    <View className="mt-6 bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
                         <Text className="text-base font-semibold text-gray-900 mb-2">Meal schedule</Text>
                         <Text className="text-sm text-gray-600">{days.join(', ')}</Text>
                     </View>
                 )}
 
                 {coverage.length > 0 && (
-                    <View className="mt-6">
+                    <View className="mt-6 bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
                         <Text className="text-base font-semibold text-gray-900 mb-2">Coverage areas</Text>
                         <Text className="text-sm text-gray-600">{coverage.join(', ')}</Text>
                     </View>
                 )}
 
                 {(normalizedTiffin.contact || normalizedTiffin.contactPhone || normalizedTiffin.contactEmail || normalizedTiffin.location?.address) && (
-                    <View className="mt-6">
+                    <View className="mt-6 bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
                         <Text className="text-base font-semibold text-gray-900 mb-2">Contact</Text>
                         {normalizedTiffin.contact && <Text className="text-sm text-gray-600 mb-1">Contact: {normalizedTiffin.contact}</Text>}
                         {normalizedTiffin.contactPhone && <Text className="text-sm text-gray-600 mb-1">Phone: {normalizedTiffin.contactPhone}</Text>}
@@ -107,7 +117,7 @@ export const TiffinDetailScreen: React.FC<Props> = ({ route }) => {
 
                 {normalizedTiffin.location?.lat && normalizedTiffin.location?.lng && (
                     <TouchableOpacity
-                        className="mt-6 bg-[#02757A] px-4 py-3 rounded-2xl items-center"
+                        className="mt-6 bg-[#02757A] px-4 py-4 rounded-2xl items-center"
                         onPress={() => openInMaps(normalizedTiffin.location!.lat, normalizedTiffin.location!.lng)}
                     >
                         <Text className="text-white font-semibold text-base">Navigate in Google Maps</Text>

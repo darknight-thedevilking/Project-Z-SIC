@@ -41,6 +41,14 @@ export const AuthLandingScreen: React.FC<Props> = ({ navigation }) => {
 
                 <TouchableOpacity
                     className="mt-4 border border-gray-200 px-5 py-4 rounded-2xl"
+                    onPress={() => navigation.navigate('Signup')}
+                    disabled={isLoading}
+                >
+                    <Text className="text-gray-900 text-base font-semibold text-center">Create an account</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    className="mt-4 border border-gray-200 px-5 py-4 rounded-2xl"
                     onPress={handleGuestLogin}
                     disabled={isLoading}
                 >

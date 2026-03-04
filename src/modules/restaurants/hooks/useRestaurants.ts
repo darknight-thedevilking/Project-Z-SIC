@@ -1,7 +1,10 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { apiClient } from '../../../core/api/axios';
 import { ENDPOINTS } from '../../../core/api/endpoints';
 import { Restaurant, RestaurantDetail } from '../types/restaurant';
+import { storage } from '../../../shared/utils/storage';
+
+const LIST_CACHE_TTL = 6 * 60 * 60 * 1000;
 
 type TakeawayListParams = Record<string, string | number | boolean | string[] | undefined>;
 
@@ -10,14 +13,64 @@ export const useRestaurants = (params?: TakeawayListParams) => {
     return useQuery({
         queryKey: ['restaurants', queryParams],
         queryFn: async () => {
-            const { data } = await apiClient.get(ENDPOINTS.takeaway.list, { params: queryParams });
-            const payload = data?.data ?? data;
-            if (Array.isArray(payload)) return payload as Restaurant[];
-            if (Array.isArray(payload?.restaurants)) return payload.restaurants as Restaurant[];
-            if (Array.isArray(payload?.items)) return payload.items as Restaurant[];
-            if (Array.isArray(payload?.data)) return payload.data as Restaurant[];
-            return [] as Restaurant[];
+            try {
+                const { data } = await apiClient.get(ENDPOINTS.takeaway.list, { params: queryParams });
+                const payload = data?.data ?? data;
+                const items = Array.isArray(payload)
+                    ? (payload as Restaurant[])
+                    : Array.isArray(payload?.restaurants)
+                    ? (payload.restaurants as Restaurant[])
+                    : Array.isArray(payload?.items)
+                    ? (payload.items as Restaurant[])
+                    : Array.isArray(payload?.data)
+                    ? (payload.data as Restaurant[])
+                    : [];
+                await storage.saveCache('restaurants:list', items);
+                return items;
+            } catch (error) {
+                const cached = await storage.getCache<Restaurant[]>('restaurants:list', LIST_CACHE_TTL);
+                return cached ?? [];
+            }
         },
+    });
+};
+
+export const useRestaurantsInfinite = (params?: TakeawayListParams) => {
+    const queryParams = { feature: 'Takeaway', ...(params || {}) };
+    return useInfiniteQuery({
+        queryKey: ['restaurants-infinite', queryParams],
+        queryFn: async ({ pageParam = 1 }) => {
+            try {
+                const { data } = await apiClient.get(ENDPOINTS.takeaway.list, {
+                    params: { ...queryParams, page: pageParam, limit: 10 },
+                });
+                const payload = data?.data ?? data;
+                let items: Restaurant[] = [];
+                if (Array.isArray(payload)) items = payload;
+                else if (Array.isArray(payload?.restaurants)) items = payload.restaurants;
+                else if (Array.isArray(payload?.items)) items = payload.items;
+                else if (Array.isArray(payload?.data)) items = payload.data;
+
+                if (pageParam === 1) {
+                    await storage.saveCache('restaurants:list', items);
+                }
+
+                return {
+                    items,
+                    nextPage: items.length >= 10 ? pageParam + 1 : undefined,
+                };
+            } catch (error) {
+                if (pageParam === 1) {
+                    const cached = await storage.getCache<Restaurant[]>('restaurants:list', LIST_CACHE_TTL);
+                    if (cached) {
+                        return { items: cached, nextPage: undefined };
+                    }
+                }
+                return { items: [], nextPage: undefined };
+            }
+        },
+        getNextPageParam: (lastPage) => lastPage.nextPage,
+        initialPageParam: 1,
     });
 };
 

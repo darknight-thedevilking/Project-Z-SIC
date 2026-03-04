@@ -1,28 +1,50 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, Image } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RestaurantsStackParamList } from '../../../core/navigation/types';
-import { useRestaurants } from '../hooks/useRestaurants';
+import { useRestaurantsInfinite } from '../hooks/useRestaurants';
 import { Restaurant } from '../types/restaurant';
+import { RestaurantCard } from '../components/RestaurantCard';
 import { ScreenHeader } from '../../../shared/components/ScreenHeader';
 import { LoadingSkeletonList } from '../../../shared/components/LoadingSkeletonList';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { EmptyState } from '../../../shared/components/EmptyState';
+import { storage } from '../../../shared/utils/storage';
 
 type Props = NativeStackScreenProps<RestaurantsStackParamList, 'RestaurantList'>;
-
-const PAGE_SIZE = 8;
+type SortOption = 'default' | 'price-low' | 'price-high' | 'rating' | 'distance';
 
 export const RestaurantListScreen: React.FC<Props> = ({ navigation }) => {
-    const { data: restaurants = [], isLoading, isError, refetch } = useRestaurants();
-    const restaurantsList = Array.isArray(restaurants) ? restaurants : [];
     const [query, setQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
     const [vegOnly, setVegOnly] = useState(false);
     const [priceFilter, setPriceFilter] = useState<'budget' | 'mid' | 'premium' | null>(null);
-    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+    const [sortBy, setSortBy] = useState<SortOption>('default');
+    const [showSortMenu, setShowSortMenu] = useState(false);
+
+    const {
+        data,
+        isLoading,
+        isError,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        refetch,
+    } = useRestaurantsInfinite();
+
+    const allRestaurants = useMemo(() => {
+        const items = data?.pages.flatMap((page) => page.items) ?? [];
+        const seen = new Set<string>();
+        return items.filter((item) => {
+            const id = item._id;
+            if (!id) return true;
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+    }, [data]);
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedQuery(query.trim()), 500);
@@ -30,8 +52,31 @@ export const RestaurantListScreen: React.FC<Props> = ({ navigation }) => {
     }, [query]);
 
     useEffect(() => {
-        setVisibleCount(PAGE_SIZE);
-    }, [debouncedQuery, selectedCuisine, vegOnly, priceFilter]);
+        loadFilters();
+    }, []);
+
+    useEffect(() => {
+        saveFilters();
+    }, [vegOnly, priceFilter, selectedCuisine, sortBy]);
+
+    const loadFilters = async () => {
+        const saved = await storage.getFilters('restaurants');
+        if (saved) {
+            if (saved.vegOnly !== undefined) setVegOnly(saved.vegOnly);
+            if (saved.priceFilter) setPriceFilter(saved.priceFilter);
+            if (saved.selectedCuisine) setSelectedCuisine(saved.selectedCuisine);
+            if (saved.sortBy) setSortBy(saved.sortBy);
+        }
+    };
+
+    const saveFilters = async () => {
+        await storage.saveFilters('restaurants', {
+            vegOnly,
+            priceFilter,
+            selectedCuisine,
+            sortBy,
+        });
+    };
 
     useFocusEffect(
         useCallback(() => {
@@ -65,15 +110,15 @@ export const RestaurantListScreen: React.FC<Props> = ({ navigation }) => {
 
     const cuisineOptions = useMemo(() => {
         const set = new Set<string>();
-        restaurantsList.forEach((item) => {
+        allRestaurants.forEach((item) => {
             getCuisineTags(item).forEach((tag) => set.add(tag));
         });
         return Array.from(set).slice(0, 10);
-    }, [restaurantsList]);
+    }, [allRestaurants]);
 
-    const filteredRestaurants = useMemo(() => {
+    const filteredAndSortedRestaurants = useMemo(() => {
         const lowerQuery = debouncedQuery.toLowerCase();
-        return restaurantsList.filter((item) => {
+        let filtered = allRestaurants.filter((item) => {
             const cuisines = getCuisineTags(item);
             const searchable = [item.name, item.description, ...cuisines].filter(Boolean).join(' ').toLowerCase();
             if (lowerQuery && !searchable.includes(lowerQuery)) return false;
@@ -88,14 +133,28 @@ export const RestaurantListScreen: React.FC<Props> = ({ navigation }) => {
             }
             return true;
         });
-    }, [restaurantsList, debouncedQuery, selectedCuisine, vegOnly, priceFilter]);
 
-    const visibleRestaurants = filteredRestaurants.slice(0, visibleCount);
-    const hasMore = visibleCount < filteredRestaurants.length;
+        if (sortBy === 'price-low') {
+            filtered = filtered.sort((a, b) => {
+                const priceA = getPriceValue(a) ?? Infinity;
+                const priceB = getPriceValue(b) ?? Infinity;
+                return priceA - priceB;
+            });
+        } else if (sortBy === 'price-high') {
+            filtered = filtered.sort((a, b) => {
+                const priceA = getPriceValue(a) ?? 0;
+                const priceB = getPriceValue(b) ?? 0;
+                return priceB - priceA;
+            });
+        }
+
+        return filtered;
+    }, [allRestaurants, debouncedQuery, selectedCuisine, vegOnly, priceFilter, sortBy]);
 
     const renderChip = (label: string, active: boolean, onPress: () => void) => (
         <TouchableOpacity
             key={label}
+            data-testid={`filter-chip-${label.toLowerCase()}`}
             className={`mr-2 rounded-full border px-3 py-2 ${active ? 'bg-[#02757A] border-[#02757A]' : 'bg-white border-gray-200'}`}
             onPress={onPress}
         >
@@ -103,70 +162,111 @@ export const RestaurantListScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
     );
 
-    const renderItem = ({ item }: { item: Restaurant }) => {
-        const cuisines = getCuisineTags(item);
-        const priceValue = getPriceValue(item);
-        const imageUrl = item.imageUrl || item.images?.[0];
+    const handleRestaurantPress = useCallback((id: string) => {
+        navigation.navigate('RestaurantDetail', { id });
+    }, [navigation]);
 
+    const renderItem = useCallback(({ item }: { item: Restaurant }) => (
+        <RestaurantCard item={item} onPress={handleRestaurantPress} />
+    ), [handleRestaurantPress]);
+
+    const keyExtractor = useCallback((item: Restaurant, index: number) => item._id || index.toString(), []);
+
+    const getItemLayout = useCallback((data: ArrayLike<Restaurant> | null | undefined, index: number) => ({
+        length: 240,
+        offset: 240 * index,
+        index,
+    }), []);
+
+    const renderFooter = () => {
+        if (!isFetchingNextPage) return null;
         return (
-            <TouchableOpacity
-                className="bg-white rounded-3xl overflow-hidden mb-4 shadow-sm"
-                style={{ shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 }}
-                onPress={() => navigation.navigate('RestaurantDetail', { id: item._id || 'unknown' })}
-            >
-                <View className="h-40 bg-gray-100">
-                    {imageUrl ? (
-                        <Image source={{ uri: imageUrl }} className="h-40 w-full" />
-                    ) : (
-                        <View className="flex-1 items-center justify-center">
-                            <Text className="text-xs text-gray-500">No image</Text>
-                        </View>
-                    )}
-                </View>
-                <View className="p-4">
-                    <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
-                        {item.name || 'Unnamed Restaurant'}
-                    </Text>
-                    {cuisines.length > 0 && (
-                        <Text className="text-sm text-gray-600 mt-1" numberOfLines={1}>
-                            {cuisines.join(' • ')}
-                        </Text>
-                    )}
-                    {priceValue !== null && (
-                        <Text className="text-xs font-semibold text-[#02757A] mt-2">From ₹{priceValue}</Text>
-                    )}
-                    {isVegRestaurant(item) && (
-                        <View className="mt-2 bg-emerald-50 px-2 py-1 rounded-full self-start">
-                            <Text className="text-[11px] font-semibold text-emerald-700">Pure Veg</Text>
-                        </View>
-                    )}
-                </View>
-            </TouchableOpacity>
+            <View className="py-4">
+                <ActivityIndicator size="small" color="#02757A" />
+            </View>
         );
     };
 
+    const handleLoadMore = () => {
+        if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    };
+
+    const sortOptions = [
+        { value: 'default', label: 'Default' },
+        { value: 'price-low', label: 'Price: Low to High' },
+        { value: 'price-high', label: 'Price: High to Low' },
+        { value: 'rating', label: 'Rating' },
+        { value: 'distance', label: 'Distance' },
+    ];
+
     return (
-        <View className="flex-1 bg-[#f7f7f7]">
-            <ScreenHeader title="Restaurants" subtitle="Takeaway and dining picks" />
-            <View className="px-5">
-                <TextInput
-                    className="bg-white px-4 py-3 rounded-2xl text-base text-gray-900"
-                    placeholder="Search by name, cuisine, or dish"
-                    value={query}
-                    onChangeText={setQuery}
+        <View className="flex-1 bg-[#f2f6f6]">
+            <View className="bg-[#e6f4f4] px-5 pt-12 pb-6">
+                <View className="absolute right-[-40px] top-[-20px] h-32 w-32 rounded-full bg-[#d6efef]" />
+                <View className="absolute left-[-30px] bottom-[-30px] h-24 w-24 rounded-full bg-[#d6efef]" />
+                <ScreenHeader
+                    title="Restaurants"
+                    subtitle="Takeaway and dining picks"
+                    rightSlot={
+                        <TouchableOpacity
+                            data-testid="sort-button"
+                            onPress={() => setShowSortMenu(!showSortMenu)}
+                            className="bg-white rounded-full px-4 py-2"
+                            style={{ shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}
+                        >
+                            <Text className="text-xs font-semibold text-gray-700">Sort ▼</Text>
+                        </TouchableOpacity>
+                    }
                 />
-                <View className="flex-row mt-3">
-                    {renderChip('Veg', vegOnly, () => setVegOnly((prev) => !prev))}
-                    {renderChip('Budget', priceFilter === 'budget', () => setPriceFilter(priceFilter === 'budget' ? null : 'budget'))}
-                    {renderChip('Mid', priceFilter === 'mid', () => setPriceFilter(priceFilter === 'mid' ? null : 'mid'))}
-                    {renderChip('Premium', priceFilter === 'premium', () => setPriceFilter(priceFilter === 'premium' ? null : 'premium'))}
+                <View className="mt-4">
+                    <TextInput
+                        data-testid="search-input"
+                        className="bg-white px-4 py-3 rounded-2xl text-base text-gray-900"
+                        placeholder="Search by name, cuisine, or dish"
+                        value={query}
+                        onChangeText={setQuery}
+                    />
                 </View>
-                <View className="flex-row mt-3 flex-wrap">
-                    {cuisineOptions.map((cuisine) =>
-                        renderChip(cuisine, selectedCuisine === cuisine, () =>
-                            setSelectedCuisine(selectedCuisine === cuisine ? null : cuisine)
-                        )
-                    )}
+            </View>
+
+            {showSortMenu && (
+                <View className="bg-white mx-5 rounded-2xl shadow-lg mb-2" style={{ elevation: 4 }}>
+                    {sortOptions.map((option) => (
+                        <TouchableOpacity
+                            key={option.value}
+                            data-testid={`sort-option-${option.value}`}
+                            className={`px-4 py-3 border-b border-gray-100 ${sortBy === option.value ? 'bg-[#02757A]/10' : ''}`}
+                            onPress={() => {
+                                setSortBy(option.value as SortOption);
+                                setShowSortMenu(false);
+                            }}
+                        >
+                            <Text className={`text-sm font-semibold ${sortBy === option.value ? 'text-[#02757A]' : 'text-gray-900'}`}>
+                                {option.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
+            <View className="px-5 -mt-4">
+                <View className="bg-white rounded-3xl p-4 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}>
+                    <Text className="text-sm font-semibold text-gray-800">Quick filters</Text>
+                    <View className="flex-row mt-3">
+                        {renderChip('Veg', vegOnly, () => setVegOnly((prev) => !prev))}
+                        {renderChip('Budget', priceFilter === 'budget', () => setPriceFilter(priceFilter === 'budget' ? null : 'budget'))}
+                        {renderChip('Mid', priceFilter === 'mid', () => setPriceFilter(priceFilter === 'mid' ? null : 'mid'))}
+                        {renderChip('Premium', priceFilter === 'premium', () => setPriceFilter(priceFilter === 'premium' ? null : 'premium'))}
+                    </View>
+                    <View className="flex-row mt-3 flex-wrap">
+                        {cuisineOptions.map((cuisine) =>
+                            renderChip(cuisine, selectedCuisine === cuisine, () =>
+                                setSelectedCuisine(selectedCuisine === cuisine ? null : cuisine)
+                            )
+                        )}
+                    </View>
                 </View>
             </View>
 
@@ -176,14 +276,18 @@ export const RestaurantListScreen: React.FC<Props> = ({ navigation }) => {
                 <ErrorState message="Failed to load restaurants." onRetry={refetch} />
             ) : (
                 <FlatList
-                    data={visibleRestaurants}
-                    keyExtractor={(item, index) => item._id || index.toString()}
+                    data={filteredAndSortedRestaurants}
+                    keyExtractor={keyExtractor}
                     renderItem={renderItem}
-                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, paddingTop: 8 }}
-                    onEndReached={() => {
-                        if (hasMore) setVisibleCount((prev) => prev + PAGE_SIZE);
-                    }}
-                    onEndReachedThreshold={0.4}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, paddingTop: 20 }}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={renderFooter}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    removeClippedSubviews
+                    getItemLayout={getItemLayout}
                     ListEmptyComponent={
                         <EmptyState
                             title="No restaurants found"
@@ -194,6 +298,7 @@ export const RestaurantListScreen: React.FC<Props> = ({ navigation }) => {
                                 setVegOnly(false);
                                 setPriceFilter(null);
                                 setQuery('');
+                                setSortBy('default');
                             }}
                         />
                     }

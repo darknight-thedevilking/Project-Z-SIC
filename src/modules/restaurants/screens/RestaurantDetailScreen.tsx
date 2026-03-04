@@ -9,12 +9,14 @@ import { ImageCarousel } from '../../../shared/components/ImageCarousel';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingSkeletonList } from '../../../shared/components/LoadingSkeletonList';
 import { openInMaps } from '../../../shared/utils/maps';
+import { useFeatureFlags } from '../../../core/hooks/useFeatureFlags';
 
 type Props = NativeStackScreenProps<RestaurantsStackParamList, 'RestaurantDetail'>;
 
 export const RestaurantDetailScreen: React.FC<Props> = ({ route }) => {
     const { id } = route.params;
     const { data: restaurant, isLoading, isError, refetch } = useRestaurantDetail(id);
+    const { data: featureFlags } = useFeatureFlags();
 
     const normalizedRestaurant = restaurant as RestaurantDetail | undefined;
 
@@ -107,23 +109,31 @@ export const RestaurantDetailScreen: React.FC<Props> = ({ route }) => {
     }
 
     return (
-        <ScrollView className="flex-1 bg-white">
+        <ScrollView className="flex-1 bg-[#f6f7f8]">
             <View className="px-5 py-6">
                 {images.length > 0 && <ImageCarousel images={images} />}
 
-                <Text className="text-2xl font-bold text-gray-900 mt-6">{normalizedRestaurant.name || 'Unnamed Restaurant'}</Text>
-                {cuisineTags.length > 0 && (
-                    <Text className="text-sm text-gray-600 mt-2">{cuisineTags.join(' • ')}</Text>
-                )}
-                {normalizedRestaurant.priceRange && (
-                    <Text className="text-sm font-semibold text-[#02757A] mt-2">{normalizedRestaurant.priceRange}</Text>
-                )}
+                <View className="bg-white rounded-3xl p-5 shadow-sm mt-5" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
+                    <Text className="text-2xl font-bold text-gray-900">{normalizedRestaurant.name || 'Unnamed Restaurant'}</Text>
+                    {cuisineTags.length > 0 && (
+                        <Text className="text-sm text-gray-600 mt-2">{cuisineTags.join(' • ')}</Text>
+                    )}
+                    {normalizedRestaurant.priceRange && (
+                        <Text className="text-sm font-semibold text-[#02757A] mt-2">{normalizedRestaurant.priceRange}</Text>
+                    )}
 
-                {normalizedRestaurant.description && (
-                    <Text className="text-base text-gray-700 mt-4 leading-6">{normalizedRestaurant.description}</Text>
-                )}
+                    {normalizedRestaurant.description && (
+                        <Text className="text-base text-gray-700 mt-4 leading-6">{normalizedRestaurant.description}</Text>
+                    )}
 
-                <View className="mt-6">
+                    {!featureFlags?.enableOrdering && (
+                        <View className="mt-4 bg-amber-50 px-3 py-2 rounded-2xl self-start">
+                            <Text className="text-xs font-semibold text-amber-700">Ordering Coming Soon</Text>
+                        </View>
+                    )}
+                </View>
+
+                <View className="mt-6 bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
                     <Text className="text-base font-semibold text-gray-900 mb-2">Services</Text>
                     <View className="flex-row flex-wrap">
                         {services.map((service) => (
@@ -135,7 +145,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({ route }) => {
                 </View>
 
                 {hours.length > 0 && (
-                    <View className="mt-6">
+                    <View className="mt-6 bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
                         <Text className="text-base font-semibold text-gray-900 mb-2">Hours</Text>
                         {hours.map((line) => (
                             <Text key={line} className="text-sm text-gray-600 mb-1">{line}</Text>
@@ -144,14 +154,14 @@ export const RestaurantDetailScreen: React.FC<Props> = ({ route }) => {
                 )}
 
                 {(normalizedRestaurant.address || normalizedRestaurant.location?.address) && (
-                    <View className="mt-6">
+                    <View className="mt-6 bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
                         <Text className="text-base font-semibold text-gray-900 mb-2">Location</Text>
                         <Text className="text-sm text-gray-600">{normalizedRestaurant.address || normalizedRestaurant.location?.address}</Text>
                     </View>
                 )}
 
                 {menuSections.length > 0 && (
-                    <View className="mt-6">
+                    <View className="mt-6 bg-white rounded-3xl p-5 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
                         <Text className="text-base font-semibold text-gray-900 mb-3">Menu</Text>
                         {menuSections.map((section) => (
                             <View key={section.title} className="mb-4">
@@ -174,7 +184,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({ route }) => {
 
                 {normalizedRestaurant.location?.lat && normalizedRestaurant.location?.lng && (
                     <TouchableOpacity
-                        className="mt-6 bg-[#02757A] px-4 py-3 rounded-2xl items-center"
+                        className="mt-6 bg-[#02757A] px-4 py-4 rounded-2xl items-center"
                         onPress={() => openInMaps(normalizedRestaurant.location!.lat!, normalizedRestaurant.location!.lng!)}
                     >
                         <Text className="text-white font-semibold text-base">Navigate in Google Maps</Text>

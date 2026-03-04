@@ -9,12 +9,14 @@ import { ImageCarousel } from '../../../shared/components/ImageCarousel';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingSkeletonList } from '../../../shared/components/LoadingSkeletonList';
 import { openInMaps } from '../../../shared/utils/maps';
+import { useFeatureFlags } from '../../../core/hooks/useFeatureFlags';
 
 type Props = NativeStackScreenProps<EventsStackParamList, 'EventDetail'>;
 
 export const EventDetailScreen: React.FC<Props> = ({ route }) => {
     const { id } = route.params;
     const { data: event, isLoading, isError, refetch } = useEventDetail(id);
+    const { data: featureFlags } = useFeatureFlags();
 
     const normalizedEvent = event as Event | undefined;
 
@@ -62,11 +64,11 @@ export const EventDetailScreen: React.FC<Props> = ({ route }) => {
     const ended = isPastEvent(normalizedEvent.date);
 
     return (
-        <ScrollView className="flex-1 bg-white">
+        <ScrollView className="flex-1 bg-[#f6f7f8]">
             <View className="px-5 py-6">
                 {images.length > 0 && <ImageCarousel images={images} />}
 
-                <View className="mt-6">
+                <View className="bg-white rounded-3xl p-5 shadow-sm mt-5" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
                     <Text className="text-2xl font-bold text-gray-900">{normalizedEvent.name || normalizedEvent.title || 'Unnamed Event'}</Text>
                     {ended && (
                         <View className="mt-2 bg-red-50 px-2 py-1 rounded-full self-start">
@@ -82,19 +84,25 @@ export const EventDetailScreen: React.FC<Props> = ({ route }) => {
                     {normalizedEvent.venue && (
                         <Text className="text-sm text-gray-600 mt-1">Venue: {formatVenue(normalizedEvent.venue)}</Text>
                     )}
+
+                    {(normalizedEvent.priceInfo || normalizedEvent.price) && (
+                        <Text className="text-sm font-semibold text-[#02757A] mt-4">Price: {normalizedEvent.priceInfo || normalizedEvent.price}</Text>
+                    )}
+
+                    {normalizedEvent.description && (
+                        <Text className="text-base text-gray-700 mt-4 leading-6">{normalizedEvent.description}</Text>
+                    )}
+
+                    {!featureFlags?.enableBooking && (
+                        <View className="mt-4 bg-amber-50 px-3 py-2 rounded-2xl self-start">
+                            <Text className="text-xs font-semibold text-amber-700">Booking Coming Soon</Text>
+                        </View>
+                    )}
                 </View>
-
-                {(normalizedEvent.priceInfo || normalizedEvent.price) && (
-                    <Text className="text-sm font-semibold text-[#02757A] mt-4">Price: {normalizedEvent.priceInfo || normalizedEvent.price}</Text>
-                )}
-
-                {normalizedEvent.description && (
-                    <Text className="text-base text-gray-700 mt-4 leading-6">{normalizedEvent.description}</Text>
-                )}
 
                 {normalizedEvent.location?.lat && normalizedEvent.location?.lng && (
                     <TouchableOpacity
-                        className="mt-6 bg-[#02757A] px-4 py-3 rounded-2xl items-center"
+                        className="mt-6 bg-[#02757A] px-4 py-4 rounded-2xl items-center"
                         onPress={() => openInMaps(normalizedEvent.location!.lat!, normalizedEvent.location!.lng!)}
                     >
                         <Text className="text-white font-semibold text-base">Navigate to venue</Text>
